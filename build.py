@@ -6,7 +6,6 @@ import argparse
 import subprocess
 
 profiles = {"Darwin":'MacosProfile.txt', "Windows":'WindowsProfile.txt', "Linux":'LinuxProfile.txt'}
-
 build_type = 'Release'
 
 def main():
@@ -16,7 +15,9 @@ def main():
     if 1:
         vtool.initialize_venv(venv_context, os.path.join('data', 'requirements.txt'))
 
-    profile =os.path.join('profiles', profiles[platform.system()])
+    profile = 'default'
+
+    venv_context.run_command('conan', 'profile', 'detect')
     venv_context.run_command('conan', 'install', '.', '-of=build', '-s', f'build_type={build_type}', '--build=missing', f"-pr:a={profile}")
     venv_context.run_command('conan', 'build', '.',  '-of=build', '-s', f'build_type={build_type}')
 
