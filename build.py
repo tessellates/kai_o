@@ -17,7 +17,11 @@ def main():
 
     profile = 'default'
 
-    venv_context.run_command('conan', 'profile', 'detect')
+    try:
+        venv_context.run_command('conan', 'profile', 'detect')
+    except: 
+        pass
+    
     venv_context.run_command('conan', 'install', '.', '-of=build', '-s', f'build_type={build_type}', '--build=missing', f"-pr:a={profile}")
     venv_context.run_command('conan', 'build', '.',  '-of=build', '-s', f'build_type={build_type}')
 
