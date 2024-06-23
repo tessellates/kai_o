@@ -1,0 +1,7 @@
+#pragma once
+
+#include <SDL2/SDL.h>
+
+const Uint32 KI_RESOLUTION_CHANGE = SDL_USEREVENT + 0;
+const Uint32 KI_FULLSCREEN_TOGGLE = SDL_USEREVENT + 1;
+const Uint32 KI_DATA_CHANGE = SDL_USEREVENT + 2;

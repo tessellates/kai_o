@@ -1,0 +1,32 @@
+#pragma once
+
+#include "KIRenderLayer.hpp"
+#include "RenderInfo.hpp"
+#include "KITextureManager.hpp"
+#include "BlinkContext.hpp"
+
+#include <SDL.h>
+#include <array>
+
+class KITextureManager;
+class RenderInfo;
+
+class LayeredRenderer {
+public:
+    LayeredRenderer() = default;
+    ~LayeredRenderer();
+    void render();
+    void clear();
+    void addRenderTarget(const RenderInfo& info);
+    void renderInfo(const RenderInfo& info, bool debug = false);
+
+public:
+    std::array<KIRenderLayer, 10> layers;
+    SDL_Renderer* renderer;
+    KITextureManager textureManager;
+    SDL_Color backgroundColor = {50, 50, 50, 255};
+
+public:
+    BlinkContext context;
+    SDL_Texture* target = NULL;
+};

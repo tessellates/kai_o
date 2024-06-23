@@ -1,0 +1,8 @@
+add_subdirectory(application)
+#add_subdirectory(engine)
+add_subdirectory(gui)
+add_subdirectory(game_model)
+add_subdirectory(grid)
+add_subdirectory(rendering)
+add_subdirectory(model)
+add_subdirectory(utilities)

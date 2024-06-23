@@ -1,0 +1,210 @@
+#include "KIApplication.hpp"
+#include "SDLUserEvents.hpp"
+
+#include "UpdatableData.hpp"
+#include "KIGUI.hpp"
+#include "TextureUtility.hpp"
+#include "ScratchPad.hpp"
+
+#include "imgui_impl_sdl2.h"
+#include "imgui_impl_sdlrenderer2.h"
+
+#include <SDL_image.h>
+#include <iostream>
+
+KIApplication::KIApplication()
+{
+    if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER | SDL_INIT_GAMECONTROLLER) != 0)
+    {
+        printf("Error: %s\n", SDL_GetError());
+    }
+
+    int imgFlags = IMG_INIT_PNG;
+    if (!(IMG_Init(imgFlags) & imgFlags)) {
+        // Handle error
+    }
+
+    // Initialize SDL_ttf
+    if (TTF_Init() == -1) {
+        std::cerr << "SDL_ttf initialization failed: " << TTF_GetError() << std::endl;
+        SDL_Quit(); // Clean up SDL before exiting
+    }
+    // From 2.0.18: Enable native IME.
+    #ifdef SDL_HINT_IME_SHOW_UI
+    SDL_SetHint(SDL_HINT_IME_SHOW_UI, "1");
+    #endif
+
+    SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "0");
+}
+
+int KIApplication::run()
+{
+    while(isRunning)
+    {
+        SDL_SetRenderDrawColor(renderer, 0,0,0,0);
+        SDL_RenderClear(renderer);
+        loop();
+    }
+    return 0;
+}
+
+void KIApplication::loop()
+{
+    while (SDL_PollEvent(&event))
+    {
+        ImGui_ImplSDL2_ProcessEvent(&event);
+        if (event.type == SDL_QUIT)
+            isRunning = false;
+        if (event.type == SDL_WINDOWEVENT && event.window.event == SDL_WINDOWEVENT_CLOSE && event.window.windowID == SDL_GetWindowID(window))
+            isRunning = false;
+        if (event.type == KI_DATA_CHANGE)
+            triggerUpdate(event.user.data1, event.user.code);
+        if (event.type == KI_FULLSCREEN_TOGGLE)
+            toggleFullscreen();
+        if (event.type == KI_RESOLUTION_CHANGE)
+            changeWindow();
+        if (event.type == SDL_KEYDOWN)
+        {
+            if (event.key.keysym.sym == SDLK_f) {
+                SDL_Event event;
+                SDL_zero(event); // Initialize the event to zero
+                event.type = KI_FULLSCREEN_TOGGLE;
+                SDL_PushEvent(&event);
+            }
+            if (event.key.keysym.sym == SDLK_ESCAPE) {
+                isMenuMode = !isMenuMode;
+            }
+        }
+    }
+
+    clock.update();
+    KIApplication::deltaTime = clock.getDeltaTime();
+
+    if (engine)
+    {
+
+    }
+
+    if (gui)
+    {
+        gui->render(isMenuMode);
+        start();
+    }
+
+    //frc.update();
+    //if (KIApplication::showFrameRate)
+    //    frc.render();
+    SDL_RenderPresent(renderer);
+}
+
+void KIApplication::init(bool test)
+{
+    if (isInit)
+    {
+        return;
+    }
+
+    isInit = true;
+
+
+    if (SDL_GetDisplayBounds(0, &display) != 0)
+    {
+        std::cout <<  SDL_GetError()  << std::endl;
+    }
+    
+    // Create window with SDL_Renderer graphics context
+    SDL_WindowFlags window_flags;// =  (SDL_WindowFlags)(SDL_WINDOW_ALLOW_HIGHDPI);
+    window = SDL_CreateWindow("KAI O", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, display.w, display.h, window_flags);
+    renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_TARGETTEXTURE | SDL_RENDERER_PRESENTVSYNC);
+    SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+
+
+    const std::vector<std::pair<int, int>> commonResolutions = {
+       {864, 576}, {1024, 768}, {1280, 720}, {1680, 945}, {1920, 1080}, {2048,1152}
+    };
+
+    for (const auto& res : commonResolutions) {
+        if (res.first < display.w && res.second < display.h) {
+            resolutions.push_back(res);
+        }
+    }
+
+    KIApplication::currentResolutionIndex = resolutions.size() - 1;
+
+    if (renderer == nullptr)
+    {
+        SDL_Log("Error creating SDL_Renderer!");
+    }
+
+    // Setup Dear ImGui context
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    io = &ImGui::GetIO();
+    io->IniFilename = NULL;
+    io->LogFilename = NULL;
+    io->ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
+    //io->ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
+    // Setup Dear ImGui style
+    ImGui::StyleColorsDark();
+
+    // Setup Platform/Renderer backends
+    ImGui_ImplSDL2_InitForSDLRenderer(window, renderer);
+    ImGui_ImplSDLRenderer2_Init(renderer);
+    //io->FontGlobalScale = 3; // Scale the fonts
+    //ImGui::GetStyle().ScaleAllSizes(4);
+
+    std::cout << "STATS FOR CATS:" << std::endl;
+    std::cout << "disx:" << display.w << std::endl;
+    std::cout << "disy:" << display.h << std::endl;
+
+    //TTF_Font* font = TTF_OpenFont("assets/Arial.ttf", 48);
+    //if (!font) {
+    //    std::cerr << "Failed to load font: " << TTF_GetError() << std::endl;
+        // Handle error
+    //}
+    //frc = FrameRateCounter(renderer, font);
+    changeWindow();
+
+    gui = new KIGUI();
+    gui->menu.addResolutions(resolutions);
+
+    //kt.addTexture(CreateTextureFromFile(KIApplication::renderer, "assets/gba4.png"));
+    //gui->texture = kt.textures[0];
+}
+
+KIApplication::~KIApplication()
+{
+    ImGui_ImplSDLRenderer2_Shutdown();
+    ImGui_ImplSDL2_Shutdown();
+    ImGui::DestroyContext();
+
+    SDL_DestroyRenderer(renderer);
+    SDL_DestroyWindow(window);
+    SDL_Quit();
+}
+
+void KIApplication::changeWindow()
+{
+    SDL_SetWindowSize(window, resolutions[currentResolutionIndex].first, resolutions[currentResolutionIndex].second);
+}
+
+void KIApplication::toggleFullscreen() 
+{
+    Uint32 fullscreenFlag = SDL_WINDOW_FULLSCREEN_DESKTOP;
+    Uint32 isFullscreen = SDL_GetWindowFlags(window) & fullscreenFlag;
+    SDL_SetWindowFullscreen(window, isFullscreen ? 0 : fullscreenFlag);
+    KIApplication::isFullscreen = !isFullscreen;
+    if (!KIApplication::isFullscreen)
+    {
+        changeWindow();
+    }
+}
+
+//STATIC
+bool KIApplication::isFullscreen = false;
+int KIApplication::currentResolutionIndex = 0;
+float KIApplication::deltaTime = 0;
+bool KIApplication::showFrameRate = false;
+
+SDL_Renderer* KIApplication::renderer = nullptr;
+SDL_Rect KIApplication::display = {};
